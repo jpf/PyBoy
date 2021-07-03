@@ -14,7 +14,6 @@ INTR_VBLANK, INTR_LCDC, INTR_TIMER, INTR_SERIAL, INTR_HIGHTOLOW = [1 << x for x 
 
 logger = logging.getLogger(__name__)
 
-
 class Motherboard:
     def __init__(
         self,
@@ -48,6 +47,10 @@ class Motherboard:
         self.breakpoints_enabled = False # breakpoints_enabled
         self.breakpoints_list = [] #[(0, 0x150), (0, 0x0040), (0, 0x0048), (0, 0x0050)]
         self.breakpoint_latch = 0
+
+        self.ticks = 0
+        # FIXME: Turn this open into logfile.open(...
+        open("motherboard.csv", "w").close()
 
     def add_breakpoint(self, bank, addr):
         self.breakpoints_enabled = True
@@ -141,7 +144,8 @@ class Motherboard:
         return False
 
     def tick(self):
-        # print("MB TICK")
+        # print(f"MB TICK {self.ticks}")
+        self.ticks += 1
         while self.lcd.processing_frame():
             cycles = self.cpu.tick()
 
@@ -184,10 +188,26 @@ class Motherboard:
 
         return False
 
+    def snoop(self, kind, i):
+        # Find a way to only do this once
+        logfile = open("motherboard.csv", "a")
+
+        banksize = 16 * 1024
+
+        real_addr = i
+        if 0x0000 <= i < 0x4000: # 16kB ROM bank #0
+            pass
+        elif 0x4000 <= i < 0x8000: # 16kB switchable ROM bank
+            real_addr = (self.cartridge.rombank_selected * banksize) + i - 0x4000
+        elif 0xA000 <= i < 0xC000: # 8kB switchable RAM bank
+            real_addr = "ram_bank"
+        logfile.write(f"{self.ticks},{kind},{real_addr}\n")
+
     ###################################################################
     # MemoryManager
     #
     def getitem(self, i):
+        self.snoop("r", i)
         if 0x0000 <= i < 0x4000: # 16kB ROM bank #0
             if i <= 0xFF and self.bootrom_enabled:
                 return self.bootrom.getitem(i)
@@ -262,6 +282,7 @@ class Motherboard:
     def setitem(self, i, value):
         assert 0 <= value < 0x100, "Memory write error! Can't write %s to %s" % (hex(value), hex(i))
 
+        self.snoop("w", i)
         if 0x0000 <= i < 0x4000: # 16kB ROM bank #0
             # Doesn't change the data. This is for MBC commands
             self.cartridge.setitem(i, value)

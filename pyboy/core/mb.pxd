@@ -17,11 +17,8 @@ cimport pyboy.core.interaction
 cimport pyboy.core.sound
 from pyboy.utils cimport WindowEvent
 
-
 cdef uint16_t STAT, LY, LYC
 cdef short VBLANK, LCDC, TIMER, SERIAL, HIGHTOLOW
-
-
 
 cdef class Motherboard:
     cdef pyboy.core.interaction.Interaction interaction
@@ -52,3 +49,5 @@ cdef class Motherboard:
     cdef void transfer_DMA(self, uint8_t)
     cdef void save_state(self, IntIOInterface)
     cdef void load_state(self, IntIOInterface)
+
+    cdef long ticks
