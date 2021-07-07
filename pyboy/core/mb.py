@@ -49,8 +49,7 @@ class Motherboard:
         self.breakpoint_latch = 0
 
         self.ticks = 0
-        # FIXME: Turn this open into logfile.open(...
-        open("motherboard.csv", "w").close()
+        self.logfile = open(f"{gamerom_file}.io.csv", "w")
 
     def add_breakpoint(self, bank, addr):
         self.breakpoints_enabled = True
@@ -188,33 +187,26 @@ class Motherboard:
 
         return False
 
-    def snoop(self, kind, i):
-        # Find a way to only do this once
-        logfile = open("motherboard.csv", "a")
-
-        banksize = 16 * 1024
-
-        real_addr = i
-        if 0x0000 <= i < 0x4000: # 16kB ROM bank #0
-            pass
-        elif 0x4000 <= i < 0x8000: # 16kB switchable ROM bank
-            real_addr = (self.cartridge.rombank_selected * banksize) + i - 0x4000
-        elif 0xA000 <= i < 0xC000: # 8kB switchable RAM bank
-            real_addr = "ram_bank"
-        logfile.write(f"{self.ticks},{kind},{real_addr}\n")
-
     ###################################################################
     # MemoryManager
     #
     def getitem(self, i):
-        self.snoop("r", i)
         if 0x0000 <= i < 0x4000: # 16kB ROM bank #0
             if i <= 0xFF and self.bootrom_enabled:
                 return self.bootrom.getitem(i)
             else:
-                return self.cartridge.getitem(i)
+                rv = self.cartridge.getitem(i)
+                self.logfile.write(f"{self.ticks},r,{i},{rv}\n")
+                return rv
+                # return self.cartridge.getitem(i)
         elif 0x4000 <= i < 0x8000: # 16kB switchable ROM bank
-            return self.cartridge.getitem(i)
+            # This has to run first because sometimes getitem() will
+            # change rombank_selected upon read
+            rv = self.cartridge.getitem(i)
+            real_addr = (self.cartridge.rombank_selected * (16 * 1024)) + i - 0x4000
+            self.logfile.write(f"{self.ticks},r,{real_addr},{rv}\n")
+            return rv
+            # return self.cartridge.getitem(i)
         elif 0x8000 <= i < 0xA000: # 8kB Video RAM
             return self.lcd.VRAM[i - 0x8000]
         elif 0xA000 <= i < 0xC000: # 8kB switchable RAM bank
@@ -282,7 +274,8 @@ class Motherboard:
     def setitem(self, i, value):
         assert 0 <= value < 0x100, "Memory write error! Can't write %s to %s" % (hex(value), hex(i))
 
-        self.snoop("w", i)
+        self.logfile.write(f"{self.ticks},w,{i},{value}\n")
+        # self.snoop("w", i)
         if 0x0000 <= i < 0x4000: # 16kB ROM bank #0
             # Doesn't change the data. This is for MBC commands
             self.cartridge.setitem(i, value)

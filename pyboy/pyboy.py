@@ -74,8 +74,6 @@ class PyBoy:
             if k not in kwargs:
                 kwargs[k] = kwargs.get(k, defaults[k])
 
-        if not os.path.isfile(gamerom_file):
-            raise FileNotFoundError(f"ROM file {gamerom_file} was not found!")
         self.gamerom_file = gamerom_file
 
         self.mb = Motherboard(

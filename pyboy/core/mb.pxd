@@ -51,3 +51,4 @@ cdef class Motherboard:
     cdef void load_state(self, IntIOInterface)
 
     cdef long ticks
+    cdef object logfile
